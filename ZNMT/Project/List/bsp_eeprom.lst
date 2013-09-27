@@ -1,0 +1,243 @@
+C51 COMPILER V9.50a   BSP_EEPROM                                                           09/24/2013 14:42:51 PAGE 1   
+
+
+C51 COMPILER V9.50a, COMPILATION OF MODULE BSP_EEPROM
+OBJECT MODULE PLACED IN .\Obj\bsp_eeprom.obj
+COMPILER INVOKED BY: D:\Program Files\Keil\C51\BIN\C51.EXE ..\Bsp\bsp_eeprom.c LARGE OPTIMIZE(SIZE) BROWSE MODP2 INCDIR(
+                    -..\App;..\Bsp) DEBUG OBJECTEXTEND PRINT(.\List\bsp_eeprom.lst) OBJECT(.\Obj\bsp_eeprom.obj)
+
+line level    source
+
+   1          /*
+   2          *  EEPROM 读、写、擦除
+   3          */
+   4          #include <stc12c5a60s2.h>
+   5          #include <intrins.h>
+   6          
+   7          #include "bsp_eeprom.h"
+   8          #include "usart.h"
+   9          #include "app.h"
+  10          
+  11          /*
+  12          * disable ISP/IAP/EEPROM function 
+  13          * make mcu in a safe state
+  14          */
+  15          void IapIdle()
+  16          {
+  17   1              IAP_CONTR = 0;
+  18   1              IAP_CMD = 0;
+  19   1              IAP_TRIG = 0; 
+  20   1              IAP_ADDRH = 0x80;
+  21   1              IAP_ADDRL = 0;
+  22   1      }
+  23          
+  24          /*
+  25          * read one byte from ISP/IAP/EEPROM area
+  26          * input: addr 
+  27          * output: flash date
+  28          */
+  29          unsigned char IapReadByte(unsigned int addr)
+  30          {
+  31   1              unsigned char dat;
+  32   1      
+  33   1              IAP_CONTR = ENABLE_IAP;
+  34   1              IAP_CMD = CMD_READ;
+  35   1      
+  36   1              IAP_ADDRL = addr;
+  37   1              IAP_ADDRH = addr >> 8;
+  38   1      
+  39   1              IAP_TRIG = 0x5a;
+  40   1              IAP_TRIG = 0xa5;
+  41   1      
+  42   1              _nop_();
+  43   1      
+  44   1              dat = IAP_DATA;
+  45   1      
+  46   1              IapIdle();
+  47   1      
+  48   1              return dat;
+  49   1      }
+  50          
+  51          /*
+  52          * program one byte to ISP/IAP/EEPROM area
+  53          * input: addr / dat
+  54          * output: none
+C51 COMPILER V9.50a   BSP_EEPROM                                                           09/24/2013 14:42:51 PAGE 2   
+
+  55          */
+  56          void IapProgramByte(unsigned int addr, unsigned char dat)
+  57          {
+  58   1              IAP_CONTR = ENABLE_IAP;
+  59   1              IAP_CMD = CMD_PROGRAM;
+  60   1      
+  61   1              IAP_ADDRL = addr;
+  62   1              IAP_ADDRH = addr >> 8;
+  63   1      
+  64   1              IAP_DATA = dat;
+  65   1      
+  66   1              IAP_TRIG = 0x5a;
+  67   1              IAP_TRIG = 0xa5;
+  68   1      
+  69   1              _nop_();
+  70   1      
+  71   1      
+  72   1              IapIdle();
+  73   1              
+  74   1      }
+  75          
+  76          
+  77          /*
+  78          *  erase one sector area
+  79          * input: addr
+  80          * output: none
+  81          */
+  82          void IapEraseSector(unsigned int addr)
+  83          {
+  84   1              IAP_CONTR = ENABLE_IAP;
+  85   1              IAP_CMD = CMD_ERASE;
+  86   1      
+  87   1              IAP_ADDRL = addr;
+  88   1              IAP_ADDRH = addr >> 8;
+  89   1      
+  90   1              IAP_TRIG = 0x5a;
+  91   1              IAP_TRIG = 0xa5;
+  92   1      
+  93   1              _nop_();
+  94   1      
+  95   1      
+  96   1              IapIdle();
+  97   1              
+  98   1      }
+  99          
+ 100          /*********************************************************************************************
+ 101          函数名：readEpdat
+ 102          参  数：无
+ 103          返回值：无
+ 104          备  注：EEPROM  读数据
+ 105          **********************************************************************************************/
+ 106          unsigned char readEpdat(unsigned int addr, unsigned char* dat, unsigned char len)
+ 107          {
+ 108   1              unsigned char i;
+ 109   1      
+ 110   1              for(i = 0; i < len; i++)
+ 111   1              {
+ 112   2                      dat[i] = IapReadByte(addr + i);
+ 113   2              }
+ 114   1      
+ 115   1              return 1;
+ 116   1      }
+C51 COMPILER V9.50a   BSP_EEPROM                                                           09/24/2013 14:42:51 PAGE 3   
+
+ 117          
+ 118          /*********************************************************************************************
+ 119          函数名：writeEpdat
+ 120          参  数：无
+ 121          返回值：无
+ 122          备  注：EEPROM  读数据
+ 123          **********************************************************************************************/
+ 124          void writeEpdat(unsigned int addr, unsigned char* dat, unsigned char len)
+ 125          {
+ 126   1              unsigned char i;
+ 127   1              
+ 128   1              //清除数据
+ 129   1              IapEraseSector(addr);
+ 130   1              for(i = 0; i < len; i++)
+ 131   1              {
+ 132   2                      if(IapReadByte(addr + i) != 0xff)
+ 133   2                      {
+ 134   3                              UART_Send_String("ERASE ERR!");
+ 135   3                      }
+ 136   2              }
+ 137   1      
+ 138   1              //写入数据
+ 139   1              for(i = 0; i < len; i++)
+ 140   1              {
+ 141   2                      IapProgramByte(addr + i, (unsigned char)dat[i]);
+ 142   2              }
+ 143   1      }
+ 144          
+ 145          
+ 146          
+ 147          //test_eeprom
+ 148          
+ 149          void test_eeprom(void)
+ 150          {
+ 151   1              unsigned int i;
+ 152   1              unsigned char dat;
+ 153   1      
+ 154   1              //清除数据
+ 155   1              IapEraseSector(IAP_ADDRESS);
+ 156   1              for(i = 0; i < 512; i++)
+ 157   1              {
+ 158   2                      if(IapReadByte(IAP_ADDRESS + i) != 0xff)
+ 159   2                      {
+ 160   3                              goto err;
+ 161   3                      }
+ 162   2              }
+ 163   1      
+ 164   1              _nop_();
+ 165   1              _nop_();
+ 166   1              _nop_();
+ 167   1              _nop_();
+ 168   1      
+ 169   1              //写入数据
+ 170   1              for(i = 0; i < 512; i++)
+ 171   1              {
+ 172   2                      IapProgramByte(IAP_ADDRESS + i, (unsigned char)i);
+ 173   2              }
+ 174   1      
+ 175   1              _nop_();
+ 176   1              _nop_();
+ 177   1              _nop_();
+ 178   1              _nop_();
+C51 COMPILER V9.50a   BSP_EEPROM                                                           09/24/2013 14:42:51 PAGE 4   
+
+ 179   1      
+ 180   1              //verify
+ 181   1              for(i = 0; i < 512; i++)
+ 182   1              {
+ 183   2                      if((dat = IapReadByte(IAP_ADDRESS+i)) != (unsigned char)i)
+ 184   2                      {
+ 185   3                              goto err;
+ 186   3                      }
+ 187   2                      UART_Send_Char(dat);
+ 188   2              }
+ 189   1      
+ 190   1      err:
+ 191   1              while(1)
+ 192   1              {
+ 193   2              }
+ 194   1      }
+ 195          
+ 196          
+ 197          extern void delayMS(unsigned int tim);
+ 198          void test_eeprom2(void)
+ 199          {
+ 200   1              DateStruct g;
+ 201   1      
+ 202   1              g.datePosition = 0xa;
+ 203   1              g.dateWaterpressure = 0x55;
+ 204   1              
+ 205   1              writeEpdat(IAP_ADDRESS, (unsigned char*)&g, sizeof(g));
+ 206   1      
+ 207   1              delayMS(1);
+ 208   1              
+ 209   1              readEpdat(IAP_ADDRESS, (unsigned char*)&gDate, sizeof(gDate));
+ 210   1              UART_Send_Char(gDate.datePosition);
+ 211   1              UART_Send_Char(gDate.dateWaterpressure);
+ 212   1      }
+ 213          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    503    ----
+   CONSTANT SIZE    =     11    ----
+   XDATA SIZE       =   ----      24
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,16 @@
+<html>
+<body>
+<pre>
+<h1>礦ision Build Log</h1>
+<h2>Project:</h2>
+E:\hubin\望远科技\Project_file\19.智能马桶\znmt_v0.1\Project\znmt_v0.1.uvproj
+Project File Date:  09/11/2013
+
+<h2>Output:</h2>
+Build target 'znmt'
+assembling STARTUP.A51...
+compiling main.c...
+linking...
+Program Size: data=9.0 xdata=0 code=17
+creating hex file from ".\Obj\znmt_v0.1"...
+".\Obj\znmt_v0.1" - 0 Error(s), 0 Warning(s).

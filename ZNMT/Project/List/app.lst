@@ -1,0 +1,535 @@
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 1   
+
+
+C51 COMPILER V9.50a, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Obj\app.obj
+COMPILER INVOKED BY: D:\Program Files\Keil\C51\BIN\C51.EXE ..\App\app.c LARGE OPTIMIZE(SIZE) BROWSE MODP2 INCDIR(..\App;
+                    -..\Bsp) DEBUG OBJECTEXTEND PRINT(.\List\app.lst) OBJECT(.\Obj\app.obj)
+
+line level    source
+
+   1          /*
+   2          * app 系统逻辑层
+   3          */
+   4          
+   5          #include <stc12c5a60s2.h>
+   6          #include <intrins.h>
+   7          #include <string.h>
+   8          
+   9          #include "config.h"
+  10          
+  11          //端口定义
+  12          sbit waterSwitch = P3^7; //上水电磁阀
+  13          sbit waterHeat = P3^4; //水箱加热
+  14          sbit dryHeat = P3^5;  //热风机
+  15          sbit seatHeat = P3^6; //坐垫加热
+  16          sbit hDet = P3^2; //人体检测
+  17          sbit waterLevel = P1^4; //液面
+  18          
+  19          //宏定义
+  20          #define CLEANORWOMEN_TIM   55 * 1000   //洗净或者女用 冲洗时间
+  21          
+  22          
+  23          //全局变量
+  24          System gCloseTool;
+  25          cleanEnum cleanStatus = clean_Idle;
+  26          
+  27          DateStruct gDate, g_init = {0xaa, 0x01, 0x01, 0x0022, 0x0022};
+  28          
+  29          //函数声明
+  30          extern void delayMS(unsigned int tim);
+  31          
+  32          static void InputUpdate(void);
+  33          static void openWater(void);
+  34          static void closeWater(void);
+  35          static void openSeatHeat(void);
+  36          static void closeSeatHeat(void);
+  37          
+  38          
+  39          static void Gvariable_Init(void)
+  40          {
+  41   1              // 变量初始化
+  42   1              memset(&gCloseTool, 0, sizeof(gCloseTool));
+  43   1              memset(&gmotor, 0, sizeof(gmotor));
+  44   1              gmotor.moveMotor_step = 400;
+  45   1      }
+  46          
+  47          
+  48          /*********************************************************************************************
+  49          函数名：System_Init
+  50          参  数：无
+  51          返回值：无
+  52          备  注：开机系统初始化
+  53          **********************************************************************************************/
+  54          void System_Init(void)
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 2   
+
+  55          {
+  56   1              //全局变量初始化
+  57   1              Gvariable_Init();
+  58   1              
+  59   1              //蜂鸣器 响一声
+  60   1              //BuzOn();
+  61   1      
+  62   1              //LED点亮3s
+  63   1              ledStart();
+  64   1      #if 0
+                      InputUpdate(); //状态输入
+              
+                      //读EEPROM
+                      readEpdat(IAP_ADDRESS, (unsigned char*)&gDate, sizeof(gDate));
+                      if(gDate.datePosition != 0xaa)
+                      {
+                              writeEpdat(IAP_ADDRESS, (unsigned char *)&g_init, sizeof(g_init));
+                      }
+                      
+                      
+                      //水箱水位检查
+                      if(gCloseTool.fillWater == 0x01)
+                      {
+                              //水位不够，开启电磁阀，进行上水 P37
+                              openWater();
+                      }
+                      else
+                      {
+                              closeWater();
+                      }
+              
+                      //水箱温度
+                      if(gCloseTool.wTemp < gDate.dateWaterTH)
+                      {
+                              //启动加热
+                      }
+              
+                      //座温检查
+                      if(gCloseTool.sTemp < gDate.dateSeatTH)
+                      {
+                              //启动加热
+                      }
+              #endif
+  98   1      }
+  99          
+ 100          
+ 101          /*********************************************************************************************
+ 102          函数名：System_Work
+ 103          调  用：
+ 104          参  数：无
+ 105          返回值：无
+ 106          备  注：系统正常运行
+ 107          **********************************************************************************************/
+ 108          void System_Work(void)
+ 109          {
+ 110   1              //人体感应检查
+ 111   1              if(gCloseTool.sensorHum == 0x01)
+ 112   1              {
+ 113   2                      //洗净
+ 114   2      
+ 115   2                      //女用
+ 116   2                      
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 3   
+
+ 117   2                      //烘干
+ 118   2                      
+ 119   2              }
+ 120   1      
+ 121   1              //按摩
+ 122   1      
+ 123   1              //座温调节
+ 124   1      
+ 125   1              //节能
+ 126   1      
+ 127   1              //除臭
+ 128   1      
+ 129   1              //水压调节
+ 130   1      
+ 131   1              //水温调节
+ 132   1      
+ 133   1              //水位检测
+ 134   1      
+ 135   1              //防冻结
+ 136   1      
+ 137   1              //强排水功能
+ 138   1              
+ 139   1      }
+ 140          
+ 141          /*********************************************************************************************
+ 142          函数名：System_Alarm
+ 143          调  用：
+ 144          参  数：无
+ 145          返回值：无
+ 146          备  注：系统报警
+ 147          **********************************************************************************************/
+ 148          void System_Alarm(void)
+ 149          {
+ 150   1              //水温报警
+ 151   1      
+ 152   1              //座温报警
+ 153   1      
+ 154   1              //水箱加热超时报警
+ 155   1      }
+ 156          
+ 157          /*********************************************************************************************
+ 158          函数名：System_Autorun
+ 159          调  用：
+ 160          参  数：无
+ 161          返回值：无
+ 162          备  注：自动运行
+ 163          **********************************************************************************************/
+ 164          void System_Autorun(void)
+ 165          {
+ 166   1              
+ 167   1      }
+ 168          
+ 169          
+ 170          
+ 171          
+ 172          
+ 173          /*********************************************************************************************
+ 174          函数名：InputUpdate
+ 175          调  用：
+ 176          参  数：
+ 177          返回值：
+ 178          备  注：开机，外部状态读入
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 4   
+
+ 179          **********************************************************************************************/
+ 180          static void InputUpdate(void)
+ 181          {       
+ 182   1              // 水箱水位检测
+ 183   1              if(waterLevel) //0001 0000
+ 184   1              {
+ 185   2                      //开启进水阀，上水
+ 186   2                      gCloseTool.fillWater = 0x01;
+ 187   2              }
+ 188   1              else
+ 189   1              {
+ 190   2                      gCloseTool.fillWater = 0x0;
+ 191   2              }
+ 192   1              
+ 193   1              //水箱温度
+ 194   1              gCloseTool.wTemp =  tempCalculate(waterTHchanne);
+ 195   1      
+ 196   1              //座温温度
+ 197   1              gCloseTool.sTemp = tempCalculate(seatTHchanne);
+ 198   1      }
+ 199          
+ 200          /*********************************************************************************************
+ 201          函数名：Watersurface
+ 202          调  用：
+ 203          参  数：无
+ 204          返回值：无
+ 205          备  注：液面检测
+ 206          **********************************************************************************************/
+ 207          void Watersurface(void)
+ 208          {
+ 209   1              
+ 210   1      }
+ 211          
+ 212          
+ 213          /*********************************************************************************************
+ 214          函数名：HumDetect
+ 215          调  用：
+ 216          参  数：无
+ 217          返回值：无
+ 218          备  注：人体检测,在定时器中周期调用
+ 219          **********************************************************************************************/
+ 220          void HumDetect(void)
+ 221          {
+ 222   1              unsigned char temp;
+ 223   1              static unsigned int humTim = 0, humTim_end = 0;
+ 224   1      
+ 225   1              temp = P3;
+ 226   1      
+ 227   1              if((temp & 0x04) == 0)
+ 228   1              {
+ 229   2                      //接触检测
+ 230   2                      //UART_Send_Char(gCloseTool.sensorHum);
+ 231   2                      
+ 232   2                      if(gCloseTool.sensorHum == 0x0)
+ 233   2                      {
+ 234   3                              if(humTim++ > 1000)
+ 235   3                              {
+ 236   4                                      UART_Send_String("detect");
+ 237   4                                      humTim = 0;
+ 238   4                                      gCloseTool.sensorHum = 0x01;    
+ 239   4                                      
+ 240   4                              }
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 5   
+
+ 241   3                      }
+ 242   2              }
+ 243   1              else if((temp & 0x04) == 0x04)
+ 244   1              {
+ 245   2                      //离开检测
+ 246   2                      if(gCloseTool.sensorHum == 0x01)
+ 247   2                      {
+ 248   3                              if(humTim_end++ > 2000)
+ 249   3                              {
+ 250   4                                      UART_Send_String("likai!");
+ 251   4                                      humTim_end = 0;
+ 252   4                                      gCloseTool.sensorHum = 0x0;             
+ 253   4                              }
+ 254   3                      }
+ 255   2              }
+ 256   1              
+ 257   1      }
+ 258          
+ 259          
+ 260          /*********************************************************************************************
+ 261          函数名：Clean
+ 262          调  用：
+ 263          参  数：无
+ 264          返回值：无
+ 265          备  注：洗净功能
+ 266          **********************************************************************************************/
+ 267          void Clean(void)
+ 268          {
+ 269   1              switch(cleanStatus)
+ 270   1              {
+ 271   2                      case clean_Idle:
+ 272   2                              if((keyValue & 0x400) == 0x400)
+ 273   2                              {
+ 274   3                                      // 清洗按键按下
+ 275   3                                      gmotor.yourMotor_f = SET;
+ 276   3                                      gmotor.moveMotor_f = SET;
+ 277   3                                      
+ 278   3                                      cleanStatus = clean_Work;
+ 279   3                              }
+ 280   2                              break;
+ 281   2      
+ 282   2                      case clean_Work:
+ 283   2                              motor();
+ 284   2      
+ 285   2                              waterPres_on();
+ 286   2                              waterPres(20);
+ 287   2      
+ 288   2                              bsp_startTim(CLEAN_TIM_ID, 5000);
+ 289   2                              cleanStatus = clean_Wait;
+ 290   2                              
+ 291   2                              break;
+ 292   2      
+ 293   2                      case clean_Wait:
+ 294   2                              if(bsp_checkTim(CLEAN_TIM_ID) == 1)
+ 295   2                              {
+ 296   3                                      //时间到
+ 297   3                                      waterPres(30);
+ 298   3                                      bsp_startTim(CLEAN_TIM_ID, CLEANORWOMEN_TIM);
+ 299   3                                      cleanStatus = clean_Exit;
+ 300   3                              }
+ 301   2                              
+ 302   2                              break;
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 6   
+
+ 303   2      
+ 304   2                      case clean_Exit:
+ 305   2                              if((bsp_checkTim(CLEAN_TIM_ID) == 1) || ((keyValue & 0x400) == 0))
+ 306   2                              {
+ 307   3                                      waterPres_off();
+ 308   3                                      
+ 309   3                                      gmotor.moveMotor_b = SET;
+ 310   3                                      gmotor.yourMotor_b = SET;
+ 311   3      
+ 312   3                                      motor();
+ 313   3      
+ 314   3                                      cleanStatus = clean_Idle;
+ 315   3                              }
+ 316   2                              
+ 317   2                              break;
+ 318   2      
+ 319   2                      default:
+ 320   2                              break;
+ 321   2              }
+ 322   1      }
+ 323          
+ 324          /*********************************************************************************************
+ 325          函数名：addWater
+ 326          参  数：无
+ 327          返回值：无
+ 328          备  注：开启水阀
+ 329          **********************************************************************************************/
+ 330          static void openWater(void)
+ 331          {
+ 332   1              waterSwitch = 0;
+ 333   1      
+ 334   1      }
+ 335          
+ 336          /*********************************************************************************************
+ 337          函数名：closeWater
+ 338          参  数：无
+ 339          返回值：无
+ 340          备  注：关闭水阀
+ 341          **********************************************************************************************/
+ 342          static void closeWater(void)
+ 343          {
+ 344   1              waterSwitch = 1;
+ 345   1      }
+ 346          
+ 347          /*********************************************************************************************
+ 348          函数名：openWaterHeat
+ 349          参  数：无
+ 350          返回值：无
+ 351          备  注：开启水箱加热
+ 352          **********************************************************************************************/
+ 353          static void openWaterHeat(void)
+ 354          {
+ 355   1      
+ 356   1      }
+ 357          
+ 358          /*********************************************************************************************
+ 359          函数名：openWaterHeat
+ 360          参  数：无
+ 361          返回值：无
+ 362          备  注：关闭水箱加热
+ 363          **********************************************************************************************/
+ 364          static void closeWaterHeat(void)
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 7   
+
+ 365          {
+ 366   1              
+ 367   1      }
+ 368          
+ 369          /*********************************************************************************************
+ 370          函数名：openSeatHeat
+ 371          参  数：无
+ 372          返回值：无
+ 373          备  注：开启坐垫加热
+ 374          **********************************************************************************************/
+ 375          static void openSeatHeat(void)
+ 376          {
+ 377   1              seatHeat = 0;
+ 378   1      }
+ 379          
+ 380          /*********************************************************************************************
+ 381          函数名：closeSeatHeat
+ 382          参  数：无
+ 383          返回值：无
+ 384          备  注：关闭坐垫加热
+ 385          **********************************************************************************************/
+ 386          static void closeSeatHeat(void)
+ 387          {
+ 388   1              seatHeat = 1;
+ 389   1      }
+ 390          
+ 391          /*********************************************************************************************
+ 392          函数名：watePres_on
+ 393          参  数：无
+ 394          返回值：无
+ 395          备  注：水泵 PWM控制开启
+ 396          **********************************************************************************************/
+ 397          void waterPres_on()
+ 398          {
+ 399   1              CR = 1; 
+ 400   1      }
+ 401          
+ 402          /*********************************************************************************************
+ 403          函数名：waterPres_off
+ 404          参  数：无
+ 405          返回值：无
+ 406          备  注：水泵 PWM控制 关闭
+ 407          **********************************************************************************************/
+ 408          void waterPres_off()
+ 409          {
+ 410   1              CR = 0;
+ 411   1      }
+ 412          
+ 413          
+ 414          /*********************************************************************************************
+ 415          函数名：waterPreFun
+ 416          参  数：水压的值
+ 417          返回值：无
+ 418          备  注：调整水压
+ 419          **********************************************************************************************/
+ 420          extern void pwmAdd(void);
+ 421          extern void pwmDec(void);
+ 422          void waterPres(unsigned char pr)
+ 423          {
+ 424   1              unsigned char Voltage = 0;
+ 425   1              float tmp;
+ 426   1      
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 8   
+
+ 427   1              while(1)
+ 428   1              {
+ 429   2                      //P16 ADC采样
+ 430   2                      tmp = adcWork(6);
+ 431   2                      Voltage = (unsigned char)(10 * tmp);
+ 432   2      
+ 433   2                      //启动PWM P13
+ 434   2                      if(Voltage > (pr + 1))
+ 435   2                      {
+ 436   3                              pwmDec();
+ 437   3                              
+ 438   3                      }
+ 439   2                      else if(Voltage < (pr - 1))
+ 440   2                      {
+ 441   3                              pwmAdd(); //改变占空比
+ 442   3                      }
+ 443   2      
+ 444   2                      //调整到合适的压力。跳出
+ 445   2                      if((Voltage > (pr + 1)) && (Voltage < (pr - 1)))
+ 446   2                      {
+ 447   3                              break;
+ 448   3                      }
+ 449   2              }
+ 450   1              
+ 451   1              //UART_Send_Char(Voltage);
+ 452   1      
+ 453   1      }
+ 454          
+ 455          
+ 456          void waterPrestest(void)
+ 457          {
+ 458   1              unsigned char Voltage = 0;
+ 459   1              float tmp;
+ 460   1              
+ 461   1              gCloseTool.waterPressure = 1;
+ 462   1      
+ 463   1              while(1)
+ 464   1              {
+ 465   2                      //P16 ADC采样
+ 466   2                      tmp = adcWork(6);
+ 467   2                      Voltage = (unsigned char)(10 * tmp);
+ 468   2      
+ 469   2              
+ 470   2                      bsp_startTim(0, 1000);
+ 471   2      
+ 472   2                      while(bsp_checkTim(0) != 1)
+ 473   2                      {
+ 474   3                              
+ 475   3                      }
+ 476   2              
+ 477   2                      //delayMS(1000);
+ 478   2                      
+ 479   2                      //启动PWM P13
+ 480   2                      if(Voltage > 24)
+ 481   2                      {
+ 482   3                              pwmAdd();
+ 483   3                              
+ 484   3                      }
+ 485   2                      else if(Voltage < 22)
+ 486   2                      {
+ 487   3                              pwmDec(); //改变占空比
+ 488   3                      }
+C51 COMPILER V9.50a   APP                                                                  09/25/2013 16:44:38 PAGE 9   
+
+ 489   2                      
+ 490   2                      
+ 491   2                      UART_Send_Char(Voltage);
+ 492   2              }
+ 493   1      
+ 494   1      }
+ 495          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    578    ----
+   CONSTANT SIZE    =     14    ----
+   XDATA SIZE       =     30      12
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

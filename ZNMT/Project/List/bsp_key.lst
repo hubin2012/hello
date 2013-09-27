@@ -1,0 +1,649 @@
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 1   
+
+
+C51 COMPILER V9.50a, COMPILATION OF MODULE BSP_KEY
+OBJECT MODULE PLACED IN .\Obj\bsp_key.obj
+COMPILER INVOKED BY: D:\Program Files\Keil\C51\BIN\C51.EXE ..\Bsp\bsp_key.c LARGE OPTIMIZE(SIZE) BROWSE MODP2 INCDIR(..\
+                    -App;..\Bsp) DEBUG OBJECTEXTEND PRINT(.\List\bsp_key.lst) OBJECT(.\Obj\bsp_key.obj)
+
+line level    source
+
+   1          /*
+   2          *  按键扫描
+   3          */
+   4          
+   5          #include <stc12c5a60s2.h>
+   6          #include <intrins.h>
+   7          
+   8          #include "Config.h"
+   9          
+  10          keySTRUCT gKey; //全局变量，按键键值
+  11          
+  12          //用来记录哪一个LED需要被点亮   
+  13          //LED1 LED2 LED3 LED5     LED 6 LED7 LED8 LED9     LED10 LED11 LED12 LED13    LED14 LED15 LED16 LED17
+  14          unsigned int Led = 0;  //0
+  15          
+  16          //每位对应哪一个按键被按下
+  17          //sw12+sw13 sw9+sw10 sw14 sw13 sw12 sw11 sw10 sw9 sw8 sw7 sw6 sw5 sw4 sw3 sw2 sw1
+  18          unsigned int keyValue = 0; 
+  19          unsigned char keyPress_num[12] = {0};//记录对应按键按下次数
+  20          //LED灯
+  21          unsigned char ledArray[16] = {
+  22                                                                          0xee, 0xdd, 0x7d, 0xed, 
+  23                                                                          0xbd, 0x7e, 0xde, 0xbe,
+  24                                                                          0xbb, 0x7b, 0xdb, 0xeb,
+  25                                                                          0xb7, 0x77, 0xe7, 0xd7,
+  26                                                                   };
+  27          
+  28          //函数申明
+  29          static void ledOn(unsigned char led);
+  30          static void ledScan(unsigned char led);
+  31          
+  32          
+  33          /*********************************************************************************************
+  34          函数名：KeyScan
+  35          作  用: 按键扫描，要定时调用
+  36          参  数：无
+  37          返回值：不稳地的键值，要进行滤波
+  38          **********************************************************************************************/
+  39          static unsigned char KeyScan(void)
+  40          {
+  41   1              unsigned char i, tmp, readDate, key = 0;
+  42   1              
+  43   1              for(i = 0; i < 4; i++)
+  44   1              {       
+  45   2                      if(i == 0)
+  46   2                      {       
+  47   3                              tmp = 0xfe;
+  48   3                      }
+  49   2                      else if(i == 1)
+  50   2                      {
+  51   3                              tmp = 0xfd;
+  52   3                      }
+  53   2                      else if(i == 2)
+  54   2                      {
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 2   
+
+  55   3                              tmp = 0xfb;
+  56   3                      }
+  57   2                      else 
+  58   2                      {
+  59   3                              tmp = 0xf7;
+  60   3                      }
+  61   2                      
+  62   2                      P0 = tmp;
+  63   2      
+  64   2                      _nop_();
+  65   2                      _nop_();
+  66   2                      _nop_();
+  67   2                      
+  68   2                      readDate = P0;
+  69   2      
+  70   2                      if(readDate != tmp)
+  71   2                      {       
+  72   3                              UART_Send_String("");
+  73   3                              //有按键按下
+  74   3                              key = readDate;
+  75   3                      }
+  76   2              }
+  77   1      
+  78   1              if(key > 0)
+  79   1              {
+  80   2                      return key;
+  81   2              }
+  82   1              else
+  83   1              {
+  84   2                      return 0;
+  85   2              }
+  86   1      }
+  87          
+  88          /*********************************************************************************************
+  89          函数名：keyProess
+  90          作  用: 按键去抖动，定时器中周期调用
+  91          参  数：无
+  92          返回值：无
+  93          **********************************************************************************************/
+  94          void keyProess(void)
+  95          {
+  96   1              unsigned char key, pinValue;
+  97   1              static unsigned char key_old = 0, tim = 0;
+  98   1      
+  99   1              pinValue = P0;  //读取
+ 100   1              
+ 101   1              key = KeyScan();
+ 102   1              //UART_Send_Char(key_old);
+ 103   1              
+ 104   1              if(key != KEY_NONE)
+ 105   1              {       
+ 106   2                      //一直按着按键，计时
+ 107   2                      if((key == key_old) && (gKey.keyOK == 0))
+ 108   2                      {
+ 109   3      
+ 110   3                              tim++;
+ 111   3                      }
+ 112   2                      else
+ 113   2                      {
+ 114   3                              //tim = 0;              
+ 115   3                      }
+ 116   2              }
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 3   
+
+ 117   1              else
+ 118   1              {
+ 119   2                      //松手或者没有按键按下
+ 120   2                      if(tim > 7)
+ 121   2                      {
+ 122   3                              tim = 0;
+ 123   3      
+ 124   3                              gKey.keyOK = 1;
+ 125   3                              gKey.keyValue = key_old;
+ 126   3                      }
+ 127   2                      else
+ 128   2                      {
+ 129   3                              tim = 0;
+ 130   3                      }
+ 131   2              }
+ 132   1              
+ 133   1              key_old = key;
+ 134   1      
+ 135   1              P0 = pinValue;  //退出按键扫描，P0口恢复
+ 136   1      
+ 137   1      }
+ 138          
+ 139          
+ 140          /*********************************************************************************************
+ 141          函数名：getKey
+ 142          作  用: 获得稳定的按键值,并记录LED状态 Led
+ 143          参  数：无
+ 144          返回值：无
+ 145          **********************************************************************************************/
+ 146          void getKey(void)
+ 147          {
+ 148   1              if(gKey.keyOK)
+ 149   1              {       
+ 150   2                      switch(gKey.keyValue)
+ 151   2                      {               
+ 152   3                              //停止按键,所有LED关闭
+ 153   3                              case KEY_SW13:
+ 154   3                                      Led = 0;
+ 155   3                                      keyValue = 0x1000;
+ 156   3                                      P2 |= 0xf0;
+ 157   3                                      break;
+ 158   3      
+ 159   3                              //清洗/移动
+ 160   3                              case KEY_SW11:
+ 161   3                                      if(keyPress_num[CLEAN])
+ 162   3                                      {
+ 163   4                                              //熄灭LED13
+ 164   4                                              Led &= 0xf7ff;   // 1111 0111 1111 1111
+ 165   4                                              keyPress_num[CLEAN] = 0; 
+ 166   4      
+ 167   4                                              keyValue &= 0xfbff;
+ 168   4                                      }
+ 169   3                                      else
+ 170   3                                      {       
+ 171   4                                              //点亮LED13
+ 172   4                                              Led &= 0xf1ff;
+ 173   4                                              Led |= 0x0800; //  0000 1000 0000 0000  
+ 174   4      
+ 175   4                                              keyValue |= 0x400;
+ 176   4                                              
+ 177   4                                              keyPress_num[CLEAN] = 1;
+ 178   4                                              keyPress_num[DRY] = 0;
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 4   
+
+ 179   4                                              keyPress_num[WOMENUSE] = 0;
+ 180   4                                      }
+ 181   3                                      
+ 182   3                                      break;
+ 183   3      
+ 184   3                              //强度  加
+ 185   3                              case KEY_SW12:
+ 186   3                                      if(keyPress_num[STRESS] < 4)
+ 187   3                                      {
+ 188   4                                              keyPress_num[STRESS]++;
+ 189   4                                      }
+ 190   3      
+ 191   3                                      Led &= 0x0fff; //强度几个指示灯清0
+ 192   3                                      
+ 193   3                                      switch(keyPress_num[STRESS])
+ 194   3                                      {
+ 195   4                                              case 1:
+ 196   4                                                      Led |= 0x1000;  //  0001 0000 0000 0000  LED14
+ 197   4                                                      break;
+ 198   4                                              case 2:
+ 199   4                                                      Led |= 0x2000;  //  0010 0000 0000 0000  LED15
+ 200   4                                                      break;
+ 201   4                                              case 3:
+ 202   4                                                      Led |= 0x4000;  //  0100 0000 0000 0000  LED16
+ 203   4                                                      break;
+ 204   4                                              case 4:
+ 205   4                                                      Led |= 0x8000;  //  1000 0000 0000 0000  LED17
+ 206   4                                                      break;
+ 207   4                                      }
+ 208   3                                      break;
+ 209   3      
+ 210   3                              case KEY_SW6:
+ 211   3                                      break;
+ 212   3                                      
+ 213   3                              case KEY_SW8:
+ 214   3      
+ 215   3                                      break;
+ 216   3      
+ 217   3                              //强度  减
+ 218   3                              case KEY_SW9:
+ 219   3                                      if(keyPress_num[STRESS] > 0)
+ 220   3                                      {
+ 221   4                                              keyPress_num[STRESS]--;
+ 222   4                                      }
+ 223   3                                      
+ 224   3                                      Led &= 0x0fff; //强度几个指示灯清0
+ 225   3                              
+ 226   3                                      switch(keyPress_num[STRESS])
+ 227   3                                      {
+ 228   4                                              case 0:
+ 229   4                                                      //Led |= 0x0000;  //  0000 0000 0000 0000
+ 230   4                                                      P2 |= 0xf0; //灯熄灭
+ 231   4                                                      break;
+ 232   4                                              case 1:
+ 233   4                                                      Led |= 0x1000;  //  0001 0000 0000 0000
+ 234   4                                                      break;
+ 235   4                                              case 2:
+ 236   4                                                      Led |= 0x2000;  //  0010 0000 0000 0000
+ 237   4                                                      break;
+ 238   4                                              case 3:
+ 239   4                                                      Led |= 0x4000;  //  0100 0000 0000 0000
+ 240   4                                                      break;
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 5   
+
+ 241   4                                      }
+ 242   3                                      break;
+ 243   3      
+ 244   3                              //水温
+ 245   3                              case KEY_SW4:
+ 246   3                                      if(keyPress_num[WATERTEMP]++ >= 3)
+ 247   3                                      {
+ 248   4                                              keyPress_num[WATERTEMP] = 0;
+ 249   4                                      }
+ 250   3      
+ 251   3                                      switch(keyPress_num[WATERTEMP])
+ 252   3                                      {
+ 253   4                                              case 1:
+ 254   4                                                      //弱
+ 255   4                                                      Led &= 0xfff7;  //LED5 = 0      1111 1111 1111 0111
+ 256   4                                                      Led |= 0x02;    //LED2 = 1      0000 0000 0000 0010  
+ 257   4                                                      break;
+ 258   4      
+ 259   4                                              case 2:
+ 260   4                                                      //中
+ 261   4                                                      Led &= 0xfffd;  //LED2 = 0      1111 1111 1111 1101
+ 262   4                                                      Led |= 0x08;    //LED5 = 1      0000 0000 0000 1000
+ 263   4                                                      break;
+ 264   4      
+ 265   4                                              case 3:
+ 266   4                                                      // 强
+ 267   4                                                      Led |= 0x0a;   //LED5 = LED2 = 1  0000 0000 0000 1010
+ 268   4                                                      break;
+ 269   4      
+ 270   4                                              case 0:
+ 271   4                                                      Led &= 0xfff5;  //LED5 = LED2 = 0  1111 1111 1111 0101
+ 272   4                                                      P2 |= 0xf0;
+ 273   4                                                      break;
+ 274   4                                      }       
+ 275   3                                      break;
+ 276   3      
+ 277   3                              //座温
+ 278   3                              case KEY_SW3:
+ 279   3                                      if(keyPress_num[SEATTEMP]++ >= 3)
+ 280   3                                      {
+ 281   4                                              keyPress_num[SEATTEMP] = 0;
+ 282   4                                      }
+ 283   3      
+ 284   3                                      switch(keyPress_num[SEATTEMP])
+ 285   3                                      {
+ 286   4                                              case 1:
+ 287   4                                                      //弱
+ 288   4                                                      Led &= 0xfffb;  //LED3 = 0      1111 1111 1111 1011
+ 289   4                                                      Led |= 0x10;    //LED6 = 1      0000 0000 0001 0000  
+ 290   4                                                      break;
+ 291   4      
+ 292   4                                              case 2:
+ 293   4                                                      //中
+ 294   4                                                      Led &= 0xffef;  //LED6 = 0      1111 1111 1110 1111
+ 295   4                                                      Led |= 0x04;    //LED3 = 1      0000 0000 0000 0100
+ 296   4                                                      break;
+ 297   4      
+ 298   4                                              case 3:
+ 299   4                                                      // 强
+ 300   4                                                      Led |= 0x14;   //LED6 = LED3 = 1  0000 0000 0001 0100
+ 301   4                                                      break;
+ 302   4      
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 6   
+
+ 303   4                                              case 0:
+ 304   4                                                      Led &= 0xffeb;  //LED10 = LED9 = 0  1111 1111 1110 1011
+ 305   4                                                      P2 |= 0xf0;
+ 306   4                                                      break;
+ 307   4                                      }                                               
+ 308   3                                      break;
+ 309   3      
+ 310   3                              // 烘干
+ 311   3                              case KEY_SW7:
+ 312   3                                      if(keyPress_num[DRY])
+ 313   3                                      {
+ 314   4                                              //熄灭LED11
+ 315   4                                              Led &= 0xfdff;   // 1111 1101 1111 1111
+ 316   4                                              keyPress_num[DRY] = 0; 
+ 317   4                                              
+ 318   4                                      }
+ 319   3                                      else
+ 320   3                                      {       
+ 321   4                                              //点亮LED11
+ 322   4                                              Led &= 0xf1ff;
+ 323   4                                              Led |= 0x0200; //  0000 0010 0000 0000  
+ 324   4                                              
+ 325   4                                              keyPress_num[DRY] = 1;
+ 326   4                                              keyPress_num[CLEAN] = 0;
+ 327   4                                              keyPress_num[WOMENUSE] = 0;
+ 328   4                                      }
+ 329   3                                      break;
+ 330   3      
+ 331   3                              // 女用
+ 332   3                              case KEY_SW10:
+ 333   3                                      if(keyPress_num[WOMENUSE])
+ 334   3                                      {
+ 335   4                                              //熄灭LED12
+ 336   4                                              Led &= 0xfbff;   // 1111 1011 1111 1111
+ 337   4                                              keyPress_num[WOMENUSE] = 0; 
+ 338   4                                              
+ 339   4                                      }
+ 340   3                                      else
+ 341   3                                      {       
+ 342   4                                              //点亮LED12
+ 343   4                                              Led &= 0xf1ff;
+ 344   4                                              Led |= 0x0400; //  0000 0100 0000 0000  
+ 345   4      
+ 346   4                                              keyPress_num[WOMENUSE] = 1;
+ 347   4                                              keyPress_num[CLEAN] = 0;
+ 348   4                                              keyPress_num[DRY] = 0;
+ 349   4                                      }
+ 350   3                                      break;
+ 351   3                      
+ 352   3                              case KEY_SW14:
+ 353   3      
+ 354   3                                      break;
+ 355   3      
+ 356   3                              case KEY_SW5:
+ 357   3                                      if(keyPress_num[ENERGYSAVE]++ >= 3)
+ 358   3                                      {
+ 359   4                                              keyPress_num[ENERGYSAVE] = 0;
+ 360   4                                      }
+ 361   3      
+ 362   3                                      switch(keyPress_num[ENERGYSAVE])
+ 363   3                                      {
+ 364   4                                              case 1:
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 7   
+
+ 365   4                                                      //冬
+ 366   4                                                      Led &= 0xfeff;  //LED10 = 0     1111 1110 1111 1111
+ 367   4                                                      Led |= 0x80;    //LED9 = 1      0000 0000 1000 0000  
+ 368   4                                                      break;
+ 369   4      
+ 370   4                                              case 2:
+ 371   4                                                      //春秋
+ 372   4                                                      Led &= 0xff7f;  //LED9 = 0      1111 1111 0111 1111
+ 373   4                                                      Led |= 0x100;    //LED10 = 1    0000 0001 0000 0000
+ 374   4                                                      break;
+ 375   4      
+ 376   4                                              case 3:
+ 377   4                                                      //夏
+ 378   4                                                      Led |= 0x180;   //LED10 = LED9 = 1  0000 0001 1000 0000
+ 379   4                                                      break;
+ 380   4      
+ 381   4                                              case 0:
+ 382   4                                                      Led &= 0xfe7f;  //LED10 = LED9 = 0  1111 1110 0111 1111
+ 383   4                                                      P2 |= 0xf0;
+ 384   4                                                      break;
+ 385   4                                      }                                               
+ 386   3                                      break;
+ 387   3                                      
+ 388   3                              case KEY_SW2:
+ 389   3                              
+ 390   3                                      
+ 391   3                                      break;
+ 392   3      
+ 393   3                              case KEY_SW9_SW10:
+ 394   3      
+ 395   3                                      break;
+ 396   3                                      
+ 397   3                              case KEY_SW12_SW13:
+ 398   3                                      break;
+ 399   3                                      
+ 400   3                      }
+ 401   2                      UART_Send_Char(gKey.keyValue);
+ 402   2                      
+ 403   2                      gKey.keyOK = 0;
+ 404   2              }
+ 405   1      }
+ 406          
+ 407          
+ 408          /*********************************************************************************************
+ 409          函数名：ledDisplay
+ 410          作  用: led灯显示，需要在定时器中周期调用
+ 411          参  数：无
+ 412          返回值：无
+ 413          **********************************************************************************************/
+ 414          void ledDisplay(void)
+ 415          {       
+ 416   1              unsigned char i;
+ 417   1              unsigned int tmp = 0;
+ 418   1      
+ 419   1              for(i = 0; i <= 15; i++)
+ 420   1              {
+ 421   2                      tmp = (Led >> i) & 0x01;
+ 422   2      
+ 423   2                      if(tmp)
+ 424   2                      {
+ 425   3                              ledScan(i);
+ 426   3                      }
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 8   
+
+ 427   2              }
+ 428   1              
+ 429   1      }
+ 430          
+ 431          /*********************************************************************************************
+ 432          函数名：ledScan
+ 433          作  用: 扫描点亮对应的灯
+ 434          参  数：应该点亮的灯
+ 435          返回值：无
+ 436          **********************************************************************************************/
+ 437          static void ledScan(unsigned char led)
+ 438          {
+ 439   1              ledOn(ledArray[led]);
+ 440   1      }
+ 441          
+ 442          
+ 443          /*********************************************************************************************
+ 444          函数名：ledOn
+ 445          作  用: 点亮LED
+ 446          参  数：LED灯 值
+ 447          返回值：无
+ 448          **********************************************************************************************/
+ 449          static void ledOn(unsigned char led)
+ 450          {
+ 451   1              unsigned char dat1 = 0, dat2 = 0;
+ 452   1              
+ 453   1              dat1 = P0; // 低四位
+ 454   1              dat2 = P2; // 高四位
+ 455   1      
+ 456   1              dat1 = (dat1 & 0xf0) | (led & 0x0f); //
+ 457   1              dat2 = (dat2 & 0x0f) | (led & 0xf0);  //
+ 458   1              
+ 459   1              P0 = dat1;
+ 460   1              P2 = dat2;
+ 461   1      }
+ 462          
+ 463          void led_d(void)
+ 464          {
+ 465   1              static unsigned char ledStatus = 0;
+ 466   1      
+ 467   1              P0 |= 0x0f;
+ 468   1              P2 |= 0xf0;
+ 469   1      
+ 470   1              //UART_Send_Char(Led >> 8);
+ 471   1              //UART_Send_Char((unsigned char)Led);
+ 472   1      
+ 473   1              switch(ledStatus)
+ 474   1              {
+ 475   2                      case 0:
+ 476   2                              //LED1 LED8 LED9 LED7
+ 477   2                              P0 &= 0xfe;
+ 478   2      
+ 479   2                              if((Led & 0x01) == 0x01)
+ 480   2                              {
+ 481   3                                      P2 &= 0xef;
+ 482   3                              }
+ 483   2      
+ 484   2                              if((Led & 0x40) == 0x40)
+ 485   2                              {
+ 486   3                                      P2 &= 0xdf;
+ 487   3                              }
+ 488   2                              
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 9   
+
+ 489   2                              if((Led & 0x80) == 0x80)
+ 490   2                              {
+ 491   3                                      P2 &= 0xbf;
+ 492   3                              }
+ 493   2                              
+ 494   2                              if((Led & 0x20) == 0x20)
+ 495   2                              {
+ 496   3                                      P2 &= 0x7f;
+ 497   3                              }
+ 498   2      
+ 499   2                              ledStatus = 1;
+ 500   2                              
+ 501   2                              break;
+ 502   2      
+ 503   2                      case 1:
+ 504   2                              //LED5 LED2 LED6 LED3
+ 505   2                              P0 &= 0xfd;
+ 506   2      
+ 507   2                              if((Led & 0x08) == 0x08)
+ 508   2                              {
+ 509   3                                      P2 &= 0xef;
+ 510   3                              }
+ 511   2      
+ 512   2                              if((Led & 0x02) == 0x02)
+ 513   2                              {
+ 514   3                                      P2 &= 0xdf;
+ 515   3                              }
+ 516   2                              
+ 517   2                              if((Led & 0x10) == 0x10)
+ 518   2                              {
+ 519   3                                      P2 &= 0xbf;
+ 520   3                              }
+ 521   2                              
+ 522   2                              if((Led & 0x04) == 0x04)
+ 523   2                              {
+ 524   3                                      P2 &= 0x7f;
+ 525   3                              }
+ 526   2      
+ 527   2                              ledStatus = 2;
+ 528   2                              
+ 529   2                              break;
+ 530   2      
+ 531   2                      case 2:
+ 532   2                              //LED13 LED12 LED10 LED11
+ 533   2                              P0 &= 0xfb;
+ 534   2      
+ 535   2                              if((Led & 0x800) == 0x800)
+ 536   2                              {
+ 537   3                                      //UART_Send_Char(Led >> 8);
+ 538   3                                      //UART_Send_Char(Led);
+ 539   3                                      P2 &= 0xef;
+ 540   3                              }
+ 541   2      
+ 542   2                              if((Led & 0x400) == 0x400)
+ 543   2                              {
+ 544   3                                      P2 &= 0xdf;
+ 545   3                              }
+ 546   2                              
+ 547   2                              if((Led & 0x100) == 0x100)
+ 548   2                              {
+ 549   3                                      P2 &= 0xbf;
+ 550   3                              }
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 10  
+
+ 551   2                              
+ 552   2                              if((Led & 0x200) == 0x200)
+ 553   2                              {
+ 554   3                                      P2 &= 0x7f;
+ 555   3                              }
+ 556   2      
+ 557   2                              ledStatus = 3;
+ 558   2                              
+ 559   2                              break;
+ 560   2      
+ 561   2                      case 3:
+ 562   2                              //LED16 LED17 LED14 LED15
+ 563   2                              P0 &= 0xf7;
+ 564   2      
+ 565   2                              if((Led & 0x4000) == 0x4000)
+ 566   2                              {
+ 567   3                                      P2 &= 0xef;
+ 568   3                              }
+ 569   2      
+ 570   2                              if((Led & 0x8000) == 0x8000)
+ 571   2                              {
+ 572   3                                      P2 &= 0xdf;
+ 573   3                              }
+ 574   2                              
+ 575   2                              if((Led & 0x1000) == 0x1000)
+ 576   2                              {
+ 577   3                                      P2 &= 0xbf;
+ 578   3                              }
+ 579   2                              
+ 580   2                              if((Led & 0x2000) == 0x2000)
+ 581   2                              {
+ 582   3                                      P2 &= 0x7f;
+ 583   3                              }
+ 584   2      
+ 585   2                              ledStatus = 0;
+ 586   2                              
+ 587   2                              break;
+ 588   2      
+ 589   2              }
+ 590   1      }
+ 591          
+ 592          
+ 593          //test
+ 594          extern void delayMS(unsigned int tim);
+ 595          void testled(void)
+ 596          {
+ 597   1              unsigned char i;
+ 598   1              
+ 599   1              for(i = 0; i < 16; i++)
+ 600   1              {
+ 601   2                      ledOn(ledArray[i]); 
+ 602   2                      delayMS(1000);
+ 603   2              }
+ 604   1      }
+ 605          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1141    ----
+   CONSTANT SIZE    =      1    ----
+   XDATA SIZE       =     37       8
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.50a   BSP_KEY                                                              09/25/2013 16:56:13 PAGE 11  
+
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
